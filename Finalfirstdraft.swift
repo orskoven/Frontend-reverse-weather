@@ -1,3 +1,213 @@
+
+
+import SwiftUI
+import Charts
+
+struct StockDashboardView: View {
+    @State private var selectedStock: Stock? = nil
+    @State private var showDetailView = false
+    @State private var sentiment: MarketSentiment = .neutral
+    @State private var showPortfolioOverview = true
+
+    var body: some View {
+        ZStack {
+            // Dynamic Background Theme
+            MarketSentimentBackground(sentiment: sentiment)
+                .edgesIgnoringSafeArea(.all)
+
+            VStack(spacing: 20) {
+                // Header: Portfolio Overview and Sentiment
+                if showPortfolioOverview {
+                    PortfolioOverviewView(sentiment: $sentiment, toggleOverview: {
+                        withAnimation { showPortfolioOverview.toggle() }
+                    })
+                        .padding(.bottom, 10)
+                }
+
+                // Watchlist Section
+                WatchlistSection(selectedStock: $selectedStock, showDetailView: $showDetailView)
+
+                // Trends and Insights
+                TrendsAndInsightsSection(stocks: stockSampleData)
+
+                // News Section
+                LatestNewsSection()
+
+                Spacer()
+            }
+            .padding()
+            .sheet(isPresented: $showDetailView) {
+                if let stock = selectedStock {
+                    StockDetailView(stock: stock)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - PortfolioOverviewView
+
+struct PortfolioOverviewView: View {
+    @Binding var sentiment: MarketSentiment
+    let toggleOverview: () -> Void
+
+    var body: some View {
+        VStack {
+            HStack {
+                VStack(alignment: .leading) {
+                    Text("Your Portfolio")
+                        .font(.title2)
+                        .bold()
+                        .foregroundColor(.white)
+                    Text("Sentiment: \(sentiment.rawValue.capitalized)")
+                        .font(.subheadline)
+                        .foregroundColor(sentiment.color)
+                }
+                Spacer()
+                Button(action: toggleOverview) {
+                    Image(systemName: "chevron.up.circle.fill")
+                        .foregroundColor(.white.opacity(0.8))
+                        .rotationEffect(Angle(degrees: showPortfolioOverview ? 0 : 180))
+                }
+            }
+            .padding()
+            .background(BlurView(style: .systemUltraThinMaterialDark))
+            .cornerRadius(15)
+            .shadow(radius: 5)
+        }
+    }
+}
+
+// MARK: - TrendsAndInsightsSection
+
+struct TrendsAndInsightsSection: View {
+    let stocks: [Stock]
+
+    var body: some View {
+        VStack(alignment: .leading) {
+            Text("Trends and Insights")
+                .font(.headline)
+                .foregroundColor(.white)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 15) {
+                    ForEach(stocks) { stock in
+                        InteractiveChart(stock: stock)
+                            .frame(width: 300, height: 200)
+                            .background(BlurView(style: .systemThinMaterialDark))
+                            .cornerRadius(15)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - StockDetailView
+
+struct StockDetailView: View {
+    let stock: Stock
+
+    var body: some View {
+        VStack(spacing: 20) {
+            // Header
+            Text(stock.companyName)
+                .font(.largeTitle)
+                .bold()
+                .foregroundColor(.white)
+
+            // Dynamic Chart
+            LineChart(data: stock.sparkline, color: stock.change > 0 ? .green : .red)
+                .frame(height: 200)
+                .padding()
+
+            // Stock Details
+            VStack(alignment: .leading, spacing: 10) {
+                StockDetailRow(title: "Price", value: "\(stock.price, specifier: "%.2f")")
+                StockDetailRow(title: "Change", value: "\(stock.change > 0 ? "+" : "")\(stock.change, specifier: "%.2f")", valueColor: stock.change > 0 ? .green : .red)
+                StockDetailRow(title: "52W High", value: "\(stock.high52W, specifier: "%.2f")")
+                StockDetailRow(title: "52W Low", value: "\(stock.low52W, specifier: "%.2f")")
+            }
+            .padding()
+            .background(BlurView(style: .systemThinMaterialDark))
+            .cornerRadius(15)
+
+            Spacer()
+        }
+        .padding()
+        .background(Color.black.edgesIgnoringSafeArea(.all))
+    }
+}
+
+struct StockDetailRow: View {
+    let title: String
+    let value: String
+    var valueColor: Color = .white
+
+    var body: some View {
+        HStack {
+            Text(title)
+                .foregroundColor(.white.opacity(0.7))
+            Spacer()
+            Text(value)
+                .foregroundColor(valueColor)
+        }
+    }
+}
+
+// MARK: - Dynamic Market Sentiment Background
+
+struct MarketSentimentBackground: View {
+    let sentiment: MarketSentiment
+
+    var body: some View {
+        LinearGradient(
+            gradient: Gradient(colors: sentiment.colors),
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+}
+
+// MARK: - Supporting Models and Sample Data
+
+enum MarketSentiment: String {
+    case bullish
+    case bearish
+    case neutral
+
+    var colors: [Color] {
+        switch self {
+        case .bullish: return [Color.green.opacity(0.7), Color.black]
+        case .bearish: return [Color.red.opacity(0.7), Color.black]
+        case .neutral: return [Color.gray.opacity(0.7), Color.black]
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .bullish: return .green
+        case .bearish: return .red
+        case .neutral: return .gray
+        }
+    }
+}
+
+struct Stock: Identifiable {
+    let id = UUID()
+    let symbol: String
+    let companyName: String
+    let price: Double
+    let change: Double
+    let high52W: Double
+    let low52W: Double
+    let sparkline: [Double]
+}
+
+let stockSampleData = [
+    Stock(symbol: "AAPL", companyName: "Apple Inc.", price: 150.00, change: +2.50, high52W: 180.00, low52W: 120.00, sparkline: [120, 130, 150, 140, 160]),
+    Stock(symbol: "NVDA", companyName: "NVIDIA Corp.", price: 144.10, change: -1.79, high52W: 200.00, low52W: 100.00, sparkline: [100, 120, 140, 130, 144])
+]
 import SwiftUI
 import AVKit
 
