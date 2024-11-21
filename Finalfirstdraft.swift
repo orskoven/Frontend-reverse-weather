@@ -1,5 +1,231 @@
 
 
+import MapKit
+
+@main
+struct WeatherApp: App {
+    var body: some Scene {
+        WindowGroup {
+            WeatherDashboardView()
+        }
+    }
+}
+
+// MARK: - WeatherDashboardView
+
+struct WeatherDashboardView: View {
+    @State private var selectedLocation: String = "Copenhagen"
+    @State private var isExpanded = false
+    @State private var showSettings = false
+    @State private var skyAnimationPhase = 0.0
+
+    var body: some View {
+        ZStack {
+            // Dynamic Sky Background
+            SkyAnimationView(weatherCondition: "Clear", phase: $skyAnimationPhase)
+                .edgesIgnoringSafeArea(.all)
+
+            VStack(spacing: 20) {
+                // Personalized Greeting and Dynamic Narration
+                PersonalizedGreetingView()
+                    .padding(.top, 20)
+                    .accessibilityLabel("Personalized greeting based on your time and weather conditions.")
+
+                // Header with Animated Weather Transition
+                HeaderView(location: selectedLocation, temperature: "1°", condition: "Partly Cloudy", high: "3°", low: "-1°")
+                    .padding(.bottom, 20)
+
+                // Interactive Weather Highlights
+                InteractiveHighlightsView()
+                    .padding()
+                    .background(BlurView(style: .systemUltraThinMaterialDark))
+                    .cornerRadius(20)
+                    .shadow(radius: 5)
+
+                // Hourly Forecast
+                HourlyForecastView(hourlyData: hourlySampleData)
+
+                // Expandable Daily Forecast
+                if isExpanded {
+                    DailyForecastView(dailyData: dailySampleData, onDaySelect: { _ in })
+                        .transition(.opacity)
+                } else {
+                    DailyForecastSummaryView(dailyData: dailySampleData.prefix(3).map { $0 }) {
+                        withAnimation {
+                            isExpanded.toggle()
+                        }
+                    }
+                }
+
+                Spacer()
+
+                // Quick Navigation Buttons
+                HStack {
+                    NavigationButton(title: "Settings", systemImage: "gearshape.fill") {
+                        showSettings.toggle()
+                    }
+                    NavigationButton(title: "Weekly Overview", systemImage: "calendar") {
+                        // Navigate to the weekly overview
+                    }
+                }
+                .padding(.horizontal)
+            }
+            .padding()
+            .onAppear {
+                withAnimation(Animation.linear(duration: 30).repeatForever(autoreverses: false)) {
+                    skyAnimationPhase += 1
+                }
+            }
+        }
+        .sheet(isPresented: $showSettings) {
+            SettingsView()
+        }
+    }
+}
+
+// MARK: - InteractiveHighlightsView
+
+struct InteractiveHighlightsView: View {
+    var body: some View {
+        HStack(spacing: 20) {
+            InteractiveHighlightCard(
+                title: "Rainfall",
+                value: "0 mm",
+                detail: "No rain expected today. Enjoy clear skies!",
+                icon: "cloud.drizzle.fill"
+            )
+            InteractiveHighlightCard(
+                title: "UV Index",
+                value: "3",
+                detail: "Moderate UV index. Sunscreen recommended if outdoors.",
+                icon: "sun.max.fill"
+            )
+            InteractiveHighlightCard(
+                title: "Wind",
+                value: "5 m/s",
+                detail: "Gentle breeze today, great for outdoor activities.",
+                icon: "wind"
+            )
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+struct InteractiveHighlightCard: View {
+    let title: String
+    let value: String
+    let detail: String
+    let icon: String
+    @State private var showDetail = false
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.title)
+                .foregroundColor(.white)
+            Text(value)
+                .font(.headline)
+                .foregroundColor(.white)
+            Text(title)
+                .font(.caption)
+                .foregroundColor(.white.opacity(0.7))
+        }
+        .padding()
+        .frame(maxWidth: .infinity)
+        .background(BlurView(style: .systemUltraThinMaterialDark))
+        .cornerRadius(10)
+        .shadow(radius: 3)
+        .onTapGesture {
+            showDetail.toggle()
+        }
+        .popover(isPresented: $showDetail) {
+            VStack {
+                Text(detail)
+                    .font(.body)
+                    .padding()
+                Button("Close") {
+                    showDetail = false
+                }
+                .padding(.top, 10)
+            }
+            .padding()
+        }
+    }
+}
+
+// MARK: - NavigationButton
+
+struct NavigationButton: View {
+    let title: String
+    let systemImage: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack {
+                Image(systemName: systemImage)
+                Text(title)
+                    .font(.headline)
+            }
+            .padding()
+            .frame(maxWidth: .infinity)
+            .background(BlurView(style: .systemThinMaterialDark))
+            .cornerRadius(10)
+        }
+        .foregroundColor(.white)
+    }
+}
+
+// MARK: - SkyAnimationView
+
+struct SkyAnimationView: View {
+    let weatherCondition: String
+    @Binding var phase: Double
+
+    var body: some View {
+        ZStack {
+            // Gradient Background
+            LinearGradient(
+                gradient: Gradient(colors: weatherConditionGradient(for: weatherCondition)),
+                startPoint: .top,
+                endPoint: .bottom
+            )
+
+            // Floating Clouds
+            CloudsView(phase: phase)
+        }
+    }
+
+    private func weatherConditionGradient(for condition: String) -> [Color] {
+        switch condition {
+        case "Partly Cloudy": return [Color.blue.opacity(0.7), Color.gray.opacity(0.4)]
+        case "Rain": return [Color.gray, Color.blue.opacity(0.3)]
+        case "Clear": return [Color.orange, Color.blue]
+        default: return [Color.black, Color.gray.opacity(0.5)]
+        }
+    }
+}
+
+// MARK: - CloudsView
+
+struct CloudsView: View {
+    var phase: Double
+
+    var body: some View {
+        GeometryReader { geometry in
+            ForEach(0..<5) { index in
+                Image(systemName: "cloud.fill")
+                    .resizable()
+                    .frame(width: 150, height: 100)
+                    .foregroundColor(.white.opacity(0.5))
+                    .position(
+                        x: CGFloat(phase * 50 + Double(index) * 100).truncatingRemainder(dividingBy: geometry.size.width),
+                        y: CGFloat(index) * 60 + 100
+                    )
+            }
+        }
+    }
+}
 import SwiftUI
 import Charts
 
